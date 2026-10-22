@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>사다리게임</title>
+<style>
+  body { font-family: sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; }
+  label { display: block; margin: 12px 0 4px; font-weight: bold; }
+  textarea { width: 100%; box-sizing: border-box; font: inherit; }
+  button { margin-top: 12px; padding: 8px 16px; font: inherit; }
+  canvas { max-width: 100%; margin-top: 16px; }
+  #err { color: #c00; }
+  li.me { font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>사다리게임</h1>
+<label for="names">참가자 (줄바꿈 또는 쉼표로 구분, 2명 이상)</label>
+<textarea id="names" rows="4">철수
+영희
+민수
+지은</textarea>
+<label for="prizes">결과 항목 (참가자 수와 같아야 함)</label>
+<textarea id="prizes" rows="4">당첨
+꽝
+꽝
+꽝</textarea>
+<button id="go">사다리 생성</button>
+<p id="err" role="alert"></p>
+<canvas id="cv" hidden></canvas>
+<ol id="out"></ol>
+<script src="ladder.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  const list = id => $(id).value.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+  const ROWS = 12, GAP = 90, H = 30;
+
+  $('go').onclick = () => {
+    const names = list('names'), prizes = list('prizes'), n = names.length;
+    $('err').textContent = '';
+    if (n < 2) return $('err').textContent = '참가자는 2명 이상이어야 합니다.';
+    if (prizes.length !== n) return $('err').textContent = `결과 항목(${prizes.length})이 참가자(${n})와 같아야 합니다.`;
+
+    const ladder = Ladder.generateLadder(n, ROWS);
+    const res = Ladder.walk(ladder, n);
+
+    const cv = $('cv'), g = cv.getContext('2d');
+    cv.hidden = false;
+    cv.width = GAP * n; cv.height = H * (ROWS + 3);
+    g.font = '14px sans-serif'; g.textAlign = 'center'; g.strokeStyle = '#333'; g.fillStyle = '#000';
+    const x = c => GAP * c + GAP / 2, y = r => H * (r + 1.5);
+    for (let c = 0; c < n; c++) {
+      g.beginPath(); g.moveTo(x(c), y(0) - 10); g.lineTo(x(c), y(ROWS - 1) + 10); g.stroke();
+      g.fillText(names[c], x(c), 18);
+      g.fillText(prizes[c], x(c), cv.height - 8);
+    }
+    ladder.forEach((row, r) => row.forEach(c => {
+      g.beginPath(); g.moveTo(x(c), y(r)); g.lineTo(x(c + 1), y(r)); g.stroke();
+    }));
+
+    $('out').innerHTML = '';
+    names.forEach((nm, i) => {
+      const li = document.createElement('li');
+      li.textContent = `${nm} → ${prizes[res[i]]}`;
+      $('out').append(li);
+    });
+  };
+</script>
+</body>
+</html>
