@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>사다리게임</title>
+<title>게임</title>
 <style>
   body { font-family: sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; }
   label { display: block; margin: 12px 0 4px; font-weight: bold; }
@@ -12,10 +12,15 @@
   canvas { max-width: 100%; margin-top: 16px; }
   #err { color: #c00; }
   li.me { font-weight: bold; }
+  #wheel { display: block; margin: 0 auto; }
+  #pointer { text-align: center; font-size: 24px; margin-top: 16px; }
 </style>
 </head>
 <body>
-<h1>사다리게임</h1>
+<h1>게임</h1>
+<label for="game">게임 선택</label>
+<select id="game"><option value="ladder">사다리게임</option><option value="roulette">룰렛</option></select>
+<section id="ladder-game">
 <label for="names">참가자 (줄바꿈 또는 쉼표로 구분, 2명 이상)</label>
 <textarea id="names" rows="4">철수
 영희
@@ -30,11 +35,57 @@
 <p id="err" role="alert"></p>
 <canvas id="cv" hidden></canvas>
 <ol id="out"></ol>
+</section>
+<section id="roulette-game" hidden>
+<label for="items">룰렛 항목 (줄바꿈 또는 쉼표로 구분, 2개 이상)</label>
+<textarea id="items" rows="4">당첨
+꽝
+꽝
+꽝</textarea>
+<button id="spin">룰렛 돌리기</button>
+<p id="rerr" style="color:#c00" role="alert"></p>
+<div id="pointer" hidden>▼</div>
+<canvas id="wheel" hidden></canvas>
+<p id="result" role="status"></p>
+</section>
 <script src="ladder.js"></script>
+<script src="roulette.js"></script>
 <script>
   const $ = id => document.getElementById(id);
   const list = id => $(id).value.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
   const ROWS = 12, GAP = 90, H = 30;
+
+  $('game').onchange = () => {
+    $('ladder-game').hidden = $('game').value !== 'ladder';
+    $('roulette-game').hidden = $('game').value !== 'roulette';
+  };
+
+  $('spin').onclick = () => {
+    const items = list('items'), n = items.length;
+    $('rerr').textContent = '';
+    if (n < 2) return $('rerr').textContent = '항목은 2개 이상이어야 합니다.';
+
+    const pick = Roulette.spin(n);
+    const cv = $('wheel'), g = cv.getContext('2d'), R = 150, a = 2 * Math.PI / n;
+    cv.hidden = $('pointer').hidden = false;
+    cv.width = cv.height = 2 * R;
+    g.font = '14px sans-serif'; g.textAlign = 'center'; g.strokeStyle = '#333';
+    items.forEach((it, i) => {
+      g.beginPath(); g.moveTo(R, R);
+      g.arc(R, R, R - 2, -Math.PI / 2 + i * a, -Math.PI / 2 + (i + 1) * a); g.closePath();
+      g.fillStyle = `hsl(${360 * i / n},70%,80%)`; g.fill(); g.stroke();
+      g.save(); g.translate(R, R); g.rotate(-Math.PI / 2 + (i + 0.5) * a);
+      g.fillStyle = '#000'; g.fillText(it, R * 0.6, 5); g.restore();
+    });
+
+    // 이전 회전을 즉시 초기화한 뒤 새로 돌린다.
+    cv.style.transition = 'none'; cv.style.transform = 'rotate(0deg)'; cv.offsetWidth;
+    cv.style.transition = 'transform 4s cubic-bezier(.17,.67,.12,1)';
+    $('result').textContent = '';
+    $('spin').disabled = true;
+    cv.ontransitionend = () => { $('result').textContent = `결과: ${items[pick]}`; $('spin').disabled = false; };
+    cv.style.transform = `rotate(${Roulette.targetAngle(pick, n, 6)}deg)`;
+  };
 
   $('go').onclick = () => {
     const names = list('names'), prizes = list('prizes'), n = names.length;
