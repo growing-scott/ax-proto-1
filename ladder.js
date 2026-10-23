@@ -13,19 +13,24 @@
     });
   }
 
-  // 시작 칸 i -> 도착 칸 result[i]
-  function walk(ladder, n) {
-    return Array.from({ length: n }, (_, start) => {
-      let pos = start;
-      for (const row of ladder) {
-        if (row.includes(pos)) pos++;
-        else if (row.includes(pos - 1)) pos--;
-      }
-      return pos;
-    });
+  // start 칸에서 출발해 각 행을 지난 뒤의 칸 목록 (길이 rows+1, 애니메이션용)
+  function path(ladder, n, start) {
+    const p = [start];
+    for (const row of ladder) {
+      let pos = p[p.length - 1];
+      if (row.includes(pos)) pos++;
+      else if (row.includes(pos - 1)) pos--;
+      p.push(pos);
+    }
+    return p;
   }
 
-  const api = { generateLadder, walk };
+  // 시작 칸 i -> 도착 칸 result[i]
+  function walk(ladder, n) {
+    return Array.from({ length: n }, (_, start) => path(ladder, n, start).pop());
+  }
+
+  const api = { generateLadder, walk, path };
   if (typeof module !== 'undefined') module.exports = api;
   else root.Ladder = api;
 })(this);
