@@ -9,9 +9,9 @@
   label { display: block; margin: 12px 0 4px; font-weight: bold; }
   textarea { width: 100%; box-sizing: border-box; font: inherit; }
   button { margin-top: 12px; padding: 8px 16px; font: inherit; }
-  canvas { max-width: 100%; margin-top: 16px; }
+  canvas { max-width: 100%; height: auto; margin-top: 16px; }
   #err { color: #c00; }
-  li.me { font-weight: bold; }
+  li { font-weight: bold; }
 </style>
 </head>
 <body>
@@ -45,26 +45,72 @@
     const ladder = Ladder.generateLadder(n, ROWS);
     const res = Ladder.walk(ladder, n);
 
-    const cv = $('cv'), g = cv.getContext('2d');
+    const cv = $('cv'), g = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
+    const W = GAP * n, CH = H * (ROWS + 3);
     cv.hidden = false;
-    cv.width = GAP * n; cv.height = H * (ROWS + 3);
-    g.font = '14px sans-serif'; g.textAlign = 'center'; g.strokeStyle = '#333'; g.fillStyle = '#000';
+    cv.width = W * dpr; cv.height = CH * dpr;
+    cv.style.width = W + 'px';
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const x = c => GAP * c + GAP / 2, y = r => H * (r + 1.5);
-    for (let c = 0; c < n; c++) {
-      g.beginPath(); g.moveTo(x(c), y(0) - 10); g.lineTo(x(c), y(ROWS - 1) + 10); g.stroke();
-      g.fillText(names[c], x(c), 18);
-      g.fillText(prizes[c], x(c), cv.height - 8);
-    }
-    ladder.forEach((row, r) => row.forEach(c => {
-      g.beginPath(); g.moveTo(x(c), y(r)); g.lineTo(x(c + 1), y(r)); g.stroke();
-    }));
+    const color = i => `hsl(${(i * 360) / n}, 70%, 45%)`;
+
+    // 참가자별 경로 꼭짓점: 위 -> 각 행의 (세로 이동, 가로 이동) -> 아래
+    const pts = names.map((_, s) => {
+      const p = Ladder.path(ladder, n, s);
+      const v = [[x(s), y(0) - 10]];
+      p.slice(0, -1).forEach((c, r) => v.push([x(c), y(r)], [x(p[r + 1]), y(r)]));
+      v.push([x(p[ROWS]), y(ROWS - 1) + 10]);
+      return v;
+    });
+    const lens = pts.map(v => v.map((q, k) => k ? Math.hypot(q[0] - v[k - 1][0], q[1] - v[k - 1][1]) : 0));
+
+    // t: 0..1 진행도. 모든 참가자가 같은 비율로 동시에 내려온다.
+    const draw = (t, done) => {
+      g.clearRect(0, 0, W, CH);
+      g.textAlign = 'center'; g.lineCap = 'round';
+      g.strokeStyle = '#bbb'; g.lineWidth = 3; g.fillStyle = '#000'; g.font = '14px sans-serif';
+      for (let c = 0; c < n; c++) {
+        g.beginPath(); g.moveTo(x(c), y(0) - 10); g.lineTo(x(c), y(ROWS - 1) + 10); g.stroke();
+        g.fillText(names[c], x(c), 18);
+      }
+      ladder.forEach((row, r) => row.forEach(c => {
+        g.beginPath(); g.moveTo(x(c), y(r)); g.lineTo(x(c + 1), y(r)); g.stroke();
+      }));
+      pts.forEach((v, i) => {
+        let left = t * lens[i].reduce((a, b) => a + b, 0), end = v[0];
+        g.strokeStyle = g.fillStyle = color(i); g.lineWidth = 5;
+        g.beginPath(); g.moveTo(...v[0]);
+        for (let k = 1; k < v.length && left > 0; k++) {
+          const f = Math.min(1, left / (lens[i][k] || 1));
+          end = [v[k - 1][0] + (v[k][0] - v[k - 1][0]) * f, v[k - 1][1] + (v[k][1] - v[k - 1][1]) * f];
+          g.lineTo(...end); left -= lens[i][k];
+        }
+        g.stroke();
+        g.beginPath(); g.arc(end[0], end[1], 7, 0, 2 * Math.PI); g.fill();
+      });
+      prizes.forEach((pz, c) => {
+        g.font = done ? 'bold 14px sans-serif' : '14px sans-serif';
+        g.fillStyle = done ? color(res.indexOf(c)) : '#000';
+        g.fillText(pz, x(c), CH - 8);
+      });
+    };
 
     $('out').innerHTML = '';
-    names.forEach((nm, i) => {
-      const li = document.createElement('li');
-      li.textContent = `${nm} → ${prizes[res[i]]}`;
-      $('out').append(li);
-    });
+    $('go').disabled = true;
+    const t0 = performance.now(), DUR = 4000;
+    const step = now => {
+      const t = Math.min(1, (now - t0) / DUR);
+      draw(t, t === 1);
+      if (t < 1) return requestAnimationFrame(step);
+      names.forEach((nm, i) => {
+        const li = document.createElement('li');
+        li.textContent = `${nm} → ${prizes[res[i]]}`;
+        li.style.color = color(i);
+        $('out').append(li);
+      });
+      $('go').disabled = false;
+    };
+    requestAnimationFrame(step);
   };
 </script>
 </body>
